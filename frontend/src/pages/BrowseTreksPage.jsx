@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { logout } from "../api/auth";
+import { getApiBaseUrl } from "../api/client";
 
 function formatDifficulty(value) {
   const normalized = String(value || "").toLowerCase();
@@ -16,7 +17,7 @@ function formatNumber(value) {
 
 const BrowseTreksPage = () => {
   const navigate = useNavigate();
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const apiBase = getApiBaseUrl();
 
   const [treks, setTreks] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | success | error

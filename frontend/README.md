@@ -1,14 +1,17 @@
 # Discover Pauri
 
 Full-stack app:
+
 - **Backend**: Express + MongoDB (Mongoose) + JWT auth + Cloudinary uploads
 - **Frontend**: Vite + React + React Router
 
 ## Folder structure
+
 - `backend/` – API server
 - `frontend/` – web app
 
 ## Prerequisites
+
 - Node.js 18+ (20+ recommended)
 - A MongoDB database (MongoDB Atlas or local)
 - Cloudinary account (required only for image uploads)
@@ -16,6 +19,7 @@ Full-stack app:
 ## Environment variables
 
 ### Backend (`backend/.env`)
+
 Create a file `backend/.env` (do **not** commit it):
 
 ```env
@@ -37,15 +41,17 @@ CLOUDINARY_FOLDER=discover-pauri
 ```
 
 ### Frontend (`frontend/.env`)
+
 Create `frontend/.env`:
 
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=https://discoverpauri-backend.onrender.com
 ```
 
 ## Run locally (development)
 
 ### 1) Backend
+
 From the repo root:
 
 ```bash
@@ -57,6 +63,7 @@ npm run start
 By default the API listens on `http://localhost:5000`.
 
 ### 2) Frontend
+
 In another terminal:
 
 ```bash
@@ -77,9 +84,11 @@ npm run seed:treks
 ## Deploy (simple approach)
 
 ### Backend
+
 Deploy the `backend/` as a Node web service.
 
 You must set these environment variables in the hosting dashboard:
+
 - `MONGO_URI`
 - `JWT_SECRET`
 - `JWT_EXPIRES_IN` (optional)
@@ -95,6 +104,7 @@ node src/index.js
 ```
 
 ### Frontend
+
 Deploy the `frontend/` as a static site.
 
 Build:
@@ -105,9 +115,13 @@ npm run build
 ```
 
 Set the environment variable:
+
 - `VITE_API_URL=https://<your-backend-host>`
+
+If you want to run everything locally, set `VITE_API_URL=http://localhost:5000` instead.
 
 Because this is an SPA using React Router, configure a rewrite so all routes serve `index.html`.
 
 ## Notes
+
 - Secrets are intentionally ignored via `.gitignore`. Rotate any credentials that were previously committed.
