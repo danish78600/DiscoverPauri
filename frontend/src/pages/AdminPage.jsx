@@ -8,6 +8,11 @@ import {
   getAllDestinations,
   updateDestination,
 } from "../api/destinations";
+import {
+  assignTaxiRequest,
+  getAllTaxiRequests,
+  updateTaxiRequest,
+} from "../api/taxiRequests";
 import { uploadImage } from "../api/uploads";
 import { createTrek, deleteTrek, getAllTreks, updateTrek } from "../api/treks";
 
@@ -56,8 +61,11 @@ export default function AdminPage() {
 
   const [destinations, setDestinations] = useState([]);
   const [treks, setTreks] = useState([]);
+  const [taxiRequests, setTaxiRequests] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [assignDrafts, setAssignDrafts] = useState({});
 
   const [destinationForm, setDestinationForm] = useState(emptyDestination);
   const [editingDestinationId, setEditingDestinationId] = useState(null);
@@ -85,24 +93,167 @@ export default function AdminPage() {
     );
   }, [treks]);
 
+  const sortedTaxiRequests = useMemo(() => {
+    return [...(Array.isArray(taxiRequests) ? taxiRequests : [])].sort(
+      (a, b) => {
+        const at = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bt = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bt - at;
+      },
+    );
+  }, [taxiRequests]);
+
   async function loadAll() {
     try {
       setStatus("loading");
       setErrorMessage("");
 
-      const [destData, trekData] = await Promise.all([
+      const [destData, trekData, taxiData] = await Promise.all([
         getAllDestinations(),
         getAllTreks(),
+        token ? getAllTaxiRequests(token) : Promise.resolve([]),
       ]);
 
       setDestinations(Array.isArray(destData) ? destData : []);
       setTreks(Array.isArray(trekData) ? trekData : []);
+      setTaxiRequests(Array.isArray(taxiData) ? taxiData : []);
       setStatus("success");
     } catch (err) {
       setStatus("error");
       setErrorMessage(
         err instanceof Error ? err.message : "Failed to load admin data",
       );
+    }
+  }
+
+  function getDraftForRequest(request) {
+    const id = request?._id;
+    if (!id) {
+      return {
+        driverName: "",
+        driverContact: "",
+        status: "pending",
+        driverNotes: "",
+        isSavingAssign: false,
+        isSavingUpdate: false,
+      };
+    }
+
+    const value = assignDrafts?.[id];
+    const v = value && typeof value === "object" ? value : {};
+
+    const requestStatus = cleanString(request?.status) || "pending";
+    const requestNotes = cleanString(request?.driverNotes);
+
+    return {
+      driverName: cleanString(v.driverName),
+      driverContact: cleanString(v.driverContact),
+      status: cleanString(v.status) || requestStatus,
+      driverNotes: v.driverNotes != null ? String(v.driverNotes) : requestNotes,
+      isSavingAssign: Boolean(v.isSavingAssign),
+      isSavingUpdate: Boolean(v.isSavingUpdate),
+    };
+  }
+
+  function updateDraft(id, patch) {
+    if (!id) return;
+    setAssignDrafts((prev) => ({
+      ...(prev && typeof prev === "object" ? prev : {}),
+      [id]: {
+        ...(prev &&
+        typeof prev === "object" &&
+        prev[id] &&
+        typeof prev[id] === "object"
+          ? prev[id]
+          : {}),
+        ...(patch || {}),
+      },
+    }));
+  }
+
+  async function onAssignRequest(request) {
+    const id = request?._id;
+    if (!id) return;
+
+    if (!token) {
+      toast.error("Missing auth token");
+      return;
+    }
+
+    const draft = getDraftForRequest(request);
+    if (draft.isSavingAssign) return;
+
+    if (!draft.driverName) {
+      toast.error("Driver name is required");
+      return;
+    }
+
+    if (!draft.driverContact) {
+      toast.error("Driver contact is required");
+      return;
+    }
+
+    try {
+      updateDraft(id, { isSavingAssign: true });
+      const updated = await assignTaxiRequest(
+        id,
+        { driverName: draft.driverName, driverContact: draft.driverContact },
+        token,
+      );
+      setTaxiRequests((prev) =>
+        (Array.isArray(prev) ? prev : []).map((r) =>
+          r?._id === updated?._id ? updated : r,
+        ),
+      );
+      updateDraft(id, { isSavingAssign: false, status: updated?.status || "" });
+      toast.success("Driver assigned");
+    } catch (err) {
+      updateDraft(id, { isSavingAssign: false });
+      toast.error(err instanceof Error ? err.message : "Assign failed");
+    }
+  }
+
+  async function onUpdateTaxiRequest(request) {
+    const id = request?._id;
+    if (!id) return;
+
+    if (!token) {
+      toast.error("Missing auth token");
+      return;
+    }
+
+    const draft = getDraftForRequest(request);
+    if (draft.isSavingUpdate) return;
+
+    const nextStatus = cleanString(draft.status).toLowerCase();
+    if (
+      !nextStatus ||
+      !["pending", "assigned", "completed"].includes(nextStatus)
+    ) {
+      toast.error("Status is invalid");
+      return;
+    }
+
+    try {
+      updateDraft(id, { isSavingUpdate: true });
+      const updated = await updateTaxiRequest(
+        id,
+        { status: nextStatus, driverNotes: String(draft.driverNotes || "") },
+        token,
+      );
+      setTaxiRequests((prev) =>
+        (Array.isArray(prev) ? prev : []).map((r) =>
+          r?._id === updated?._id ? updated : r,
+        ),
+      );
+      updateDraft(id, {
+        isSavingUpdate: false,
+        status: updated?.status || nextStatus,
+      });
+      toast.success("Taxi request updated");
+    } catch (err) {
+      updateDraft(id, { isSavingUpdate: false });
+      toast.error(err instanceof Error ? err.message : "Update failed");
     }
   }
 
@@ -1052,6 +1203,150 @@ export default function AdminPage() {
             </div>
           </section>
         </div>
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Taxi Requests</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                View customer requests and assign a driver.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-slate-200">
+            {sortedTaxiRequests.length ? (
+              <ul className="divide-y divide-slate-200">
+                {sortedTaxiRequests.map((req) => {
+                  const draft = getDraftForRequest(req);
+                  const statusValue = cleanString(req?.status) || "pending";
+                  const isCompleted = statusValue === "completed";
+
+                  return (
+                    <li
+                      key={req?._id}
+                      className="grid gap-3 px-4 py-4 sm:grid-cols-3"
+                    >
+                      <div className="sm:col-span-2">
+                        <p className="text-sm font-medium text-slate-900">
+                          {req?.pickupLocation || "(No pickup)"} →{" "}
+                          {req?.dropLocation || "(No drop)"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {req?.dateTime
+                            ? new Date(req.dateTime).toLocaleString()
+                            : "(No date)"}{" "}
+                          · {req?.passengers ? `${req.passengers} pax` : ""} ·{" "}
+                          {req?.tripType || ""}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Contact: {req?.contactNumber || "(No contact)"}
+                        </p>
+
+                        <p className="mt-2 text-xs font-medium text-slate-700">
+                          Status:{" "}
+                          {statusValue.charAt(0).toUpperCase() +
+                            statusValue.slice(1)}
+                        </p>
+
+                        {req?.assignedDriver?.name ||
+                        req?.assignedDriver?.contact ? (
+                          <p className="mt-1 text-xs text-slate-700">
+                            Assigned: {req?.assignedDriver?.name || ""} (
+                            {req?.assignedDriver?.contact || ""})
+                          </p>
+                        ) : null}
+
+                        {req?.driverNotes ? (
+                          <p className="mt-2 text-xs text-slate-600">
+                            Notes: {req.driverNotes}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={draft.status}
+                            onChange={(e) =>
+                              updateDraft(req?._id, { status: e.target.value })
+                            }
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                            disabled={draft.isSavingUpdate}
+                            aria-label="Status"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="assigned">Assigned</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => onUpdateTaxiRequest(req)}
+                            disabled={draft.isSavingUpdate}
+                            className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {draft.isSavingUpdate ? "Saving…" : "Save"}
+                          </button>
+                        </div>
+
+                        <textarea
+                          value={draft.driverNotes}
+                          onChange={(e) =>
+                            updateDraft(req?._id, {
+                              driverNotes: e.target.value,
+                            })
+                          }
+                          placeholder="Driver notes (optional)"
+                          className="min-h-20 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                          disabled={draft.isSavingUpdate}
+                        />
+
+                        <input
+                          value={draft.driverName}
+                          onChange={(e) =>
+                            updateDraft(req?._id, {
+                              driverName: e.target.value,
+                            })
+                          }
+                          placeholder="Driver name"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                          disabled={isCompleted}
+                        />
+                        <input
+                          value={draft.driverContact}
+                          onChange={(e) =>
+                            updateDraft(req?._id, {
+                              driverContact: e.target.value,
+                            })
+                          }
+                          placeholder="Driver phone/WhatsApp"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                          disabled={isCompleted}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onAssignRequest(req)}
+                          disabled={isCompleted || draft.isSavingAssign}
+                          className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {draft.isSavingAssign
+                            ? "Assigning…"
+                            : "Assign driver"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="p-4 text-sm text-slate-600">
+                {status === "loading"
+                  ? "Loading taxi requests…"
+                  : "No taxi requests yet."}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   );

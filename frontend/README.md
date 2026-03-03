@@ -45,7 +45,7 @@ CLOUDINARY_FOLDER=discover-pauri
 Create `frontend/.env`:
 
 ```env
-VITE_API_URL=https://discoverpauri-backend.onrender.com
+VITE_API_URL=http://localhost:5000
 ```
 
 ## Run locally (development)

@@ -6,6 +6,7 @@ import path from "path";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
 import destinationRoutes from "./routes/destination.routes.js";
+import taxiRequestRoutes from "./routes/taxiRequest.routes.js";
 import trekRoutes from "./routes/trek.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 
@@ -23,6 +24,7 @@ if (fs.existsSync(uploadsDir)) {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/destinations", destinationRoutes);
+app.use("/api/taxi-requests", taxiRequestRoutes);
 app.use("/api/treks", trekRoutes);
 app.use("/api/uploads", uploadRoutes);
 

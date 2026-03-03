@@ -11,6 +11,7 @@ import RequireAuth from "./components/RequireAuth";
 import RequireAdmin from "./components/RequireAdmin";
 import AdminPage from "./pages/AdminPage";
 import AdminDestinationFormPage from "./pages/AdminDestinationFormPage";
+import TaxiRequestPage from "./pages/TaxiRequestPage";
 
 function App() {
   return (
@@ -62,6 +63,7 @@ function App() {
             </RequireAdmin>
           }
         />
+        <Route path="/taxi-request" element={<TaxiRequestPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

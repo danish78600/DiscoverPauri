@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = "https://discoverpauri-backend.onrender.com";
+const DEFAULT_API_BASE_URL = "http://localhost:5000";
 
 export class ApiError extends Error {
   /** @param {{ message: string, status: number, data?: unknown }} args */

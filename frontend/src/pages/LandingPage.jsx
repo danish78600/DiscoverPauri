@@ -1,13 +1,95 @@
 import uttrakhandImg from "../assets/uttrakhand.jpg";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { logout } from "../api/auth";
+import { getPublicTaxiRequest } from "../api/taxiRequests";
+
+function decodeJwtPayload(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length < 2) return null;
+
+  try {
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function getTaxiTokenStorageKey(jwtToken) {
+  const payload = decodeJwtPayload(jwtToken);
+  const userId = payload && typeof payload === "object" ? payload.id : null;
+  if (userId) return `dp_taxi_public_token_${String(userId)}`;
+  return "dp_taxi_public_token_guest";
+}
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [token, setToken] = useState(() => localStorage.getItem("dp_token"));
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [assignedTrip, setAssignedTrip] = useState(null);
+
+  const taxiPublicToken = useMemo(() => {
+    const key = getTaxiTokenStorageKey(token);
+    const legacy = String(
+      localStorage.getItem("dp_taxi_public_token") || "",
+    ).trim();
+    const current = String(localStorage.getItem(key) || "").trim();
+
+    // One-time migration: legacy key -> guest key only.
+    if (!token && legacy && !current) {
+      localStorage.setItem("dp_taxi_public_token_guest", legacy);
+    }
+    if (legacy) {
+      localStorage.removeItem("dp_taxi_public_token");
+    }
+
+    return String(localStorage.getItem(key) || "").trim();
+  }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAssignedTrip() {
+      if (!taxiPublicToken) return;
+
+      try {
+        const data = await getPublicTaxiRequest(taxiPublicToken);
+        if (cancelled) return;
+
+        const status =
+          data && typeof data === "object" ? String(data.status || "") : "";
+        const driverName =
+          data && typeof data === "object"
+            ? String(data?.assignedDriver?.name || "")
+            : "";
+        const driverContact =
+          data && typeof data === "object"
+            ? String(data?.assignedDriver?.contact || "")
+            : "";
+
+        const isAssigned = status === "assigned" || status === "completed";
+        if (!isAssigned || (!driverName && !driverContact)) {
+          setAssignedTrip(null);
+          return;
+        }
+
+        setAssignedTrip(data);
+      } catch {
+        if (!cancelled) setAssignedTrip(null);
+      }
+    }
+
+    void loadAssignedTrip();
+    return () => {
+      cancelled = true;
+    };
+  }, [taxiPublicToken]);
 
   async function onLogout() {
     if (isLoggingOut) return;
@@ -25,6 +107,7 @@ const LandingPage = () => {
     } finally {
       localStorage.removeItem("dp_token");
       setToken(null);
+      setAssignedTrip(null);
       setIsLoggingOut(false);
       navigate("/");
     }
@@ -97,6 +180,41 @@ const LandingPage = () => {
       </header>
 
       <main id="top">
+        {assignedTrip ? (
+          <section className="mx-auto max-w-6xl px-4 pt-6">
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">
+                Driver assigned to your trip
+              </p>
+              <p className="mt-1 text-sm text-slate-700">
+                <span className="font-medium">
+                  {assignedTrip?.assignedDriver?.name || "Driver"}
+                </span>
+                {assignedTrip?.assignedDriver?.contact ? (
+                  <>
+                    {" "}
+                    (
+                    <a
+                      href={`tel:${assignedTrip.assignedDriver.contact}`}
+                      className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+                    >
+                      {assignedTrip.assignedDriver.contact}
+                    </a>
+                    )
+                  </>
+                ) : null}{" "}
+                is assigned to you for trip starting at{" "}
+                <span className="font-medium text-slate-900">
+                  {assignedTrip?.dateTime
+                    ? new Date(assignedTrip.dateTime).toLocaleString()
+                    : "(time not set)"}
+                </span>
+                .
+              </p>
+            </div>
+          </section>
+        ) : null}
+
         <section className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
           <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
             <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white via-white to-slate-50" />

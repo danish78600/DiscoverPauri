@@ -329,11 +329,28 @@ export default function BrowseDestinationsPage() {
                       </p>
                     )}
 
-                    {dest.slug ? (
-                      <p className="mt-auto pt-4 text-xs font-medium text-slate-500 group-hover:text-slate-700">
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+                      <p className="text-xs font-medium text-slate-500 group-hover:text-slate-700">
                         View →
                       </p>
-                    ) : null}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate("/taxi-request", {
+                            state: {
+                              destinationId: dest?._id || null,
+                              destinationName: dest?.name || "",
+                              dropLocation: dest?.name || "",
+                            },
+                          });
+                        }}
+                        className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                      >
+                        Book Taxi
+                      </button>
+                    </div>
                   </div>
                 </Link>
               );
