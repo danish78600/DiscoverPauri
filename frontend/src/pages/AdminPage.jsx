@@ -15,6 +15,7 @@ import {
 } from "../api/taxiRequests";
 import { uploadImage } from "../api/uploads";
 import { createTrek, deleteTrek, getAllTreks, updateTrek } from "../api/treks";
+import { approveReview, getPendingReviews, rejectReview } from "../api/reviews";
 
 function cleanString(value) {
   const v = String(value ?? "").trim();
@@ -62,10 +63,12 @@ export default function AdminPage() {
   const [destinations, setDestinations] = useState([]);
   const [treks, setTreks] = useState([]);
   const [taxiRequests, setTaxiRequests] = useState([]);
+  const [pendingReviews, setPendingReviews] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [errorMessage, setErrorMessage] = useState("");
 
   const [assignDrafts, setAssignDrafts] = useState({});
+  const [reviewDrafts, setReviewDrafts] = useState({});
 
   const [destinationForm, setDestinationForm] = useState(emptyDestination);
   const [editingDestinationId, setEditingDestinationId] = useState(null);
@@ -108,21 +111,96 @@ export default function AdminPage() {
       setStatus("loading");
       setErrorMessage("");
 
-      const [destData, trekData, taxiData] = await Promise.all([
+      const [destData, trekData, taxiData, reviewData] = await Promise.all([
         getAllDestinations(),
         getAllTreks(),
         token ? getAllTaxiRequests(token) : Promise.resolve([]),
+        token ? getPendingReviews(token) : Promise.resolve([]),
       ]);
 
       setDestinations(Array.isArray(destData) ? destData : []);
       setTreks(Array.isArray(trekData) ? trekData : []);
       setTaxiRequests(Array.isArray(taxiData) ? taxiData : []);
+      setPendingReviews(Array.isArray(reviewData) ? reviewData : []);
       setStatus("success");
     } catch (err) {
       setStatus("error");
       setErrorMessage(
         err instanceof Error ? err.message : "Failed to load admin data",
       );
+    }
+  }
+
+  function getReviewDraft(id) {
+    if (!id) return { isApproving: false, isRejecting: false };
+    const value = reviewDrafts?.[id];
+    const v = value && typeof value === "object" ? value : {};
+    return {
+      isApproving: Boolean(v.isApproving),
+      isRejecting: Boolean(v.isRejecting),
+    };
+  }
+
+  function updateReviewDraft(id, patch) {
+    if (!id) return;
+    setReviewDrafts((prev) => ({
+      ...(prev && typeof prev === "object" ? prev : {}),
+      [id]: {
+        ...(prev && typeof prev === "object" && prev[id] ? prev[id] : {}),
+        ...(patch || {}),
+      },
+    }));
+  }
+
+  async function onApprovePendingReview(review) {
+    const id = review?._id;
+    if (!id) return;
+
+    if (!token) {
+      toast.error("Missing auth token");
+      return;
+    }
+
+    const draft = getReviewDraft(id);
+    if (draft.isApproving || draft.isRejecting) return;
+
+    try {
+      updateReviewDraft(id, { isApproving: true });
+      await approveReview(id, token);
+      setPendingReviews((prev) =>
+        (Array.isArray(prev) ? prev : []).filter((r) => r?._id !== id),
+      );
+      toast.success("Review approved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Approve failed");
+    } finally {
+      updateReviewDraft(id, { isApproving: false });
+    }
+  }
+
+  async function onRejectPendingReview(review) {
+    const id = review?._id;
+    if (!id) return;
+
+    if (!token) {
+      toast.error("Missing auth token");
+      return;
+    }
+
+    const draft = getReviewDraft(id);
+    if (draft.isApproving || draft.isRejecting) return;
+
+    try {
+      updateReviewDraft(id, { isRejecting: true });
+      await rejectReview(id, token);
+      setPendingReviews((prev) =>
+        (Array.isArray(prev) ? prev : []).filter((r) => r?._id !== id),
+      );
+      toast.success("Review rejected");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Reject failed");
+    } finally {
+      updateReviewDraft(id, { isRejecting: false });
     }
   }
 
@@ -1203,6 +1281,79 @@ export default function AdminPage() {
             </div>
           </section>
         </div>
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Pending Reviews</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Approve or reject user-submitted reviews.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-slate-200">
+            {pendingReviews.length ? (
+              <ul className="divide-y divide-slate-200">
+                {pendingReviews.map((r) => {
+                  const id = r?._id;
+                  const draft = getReviewDraft(id);
+                  const targetLabel =
+                    r?.targetType === "trek" ? "Trek" : "Destination";
+
+                  return (
+                    <li
+                      key={id}
+                      className="grid gap-3 px-4 py-4 sm:grid-cols-3"
+                    >
+                      <div className="sm:col-span-2">
+                        <p className="text-sm font-medium text-slate-900">
+                          {targetLabel}: {r?.targetName || "(Unknown)"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Rating: {r?.rating ?? "—"} · By:{" "}
+                          {r?.user?.name || "User"}
+                          {r?.user?.email ? ` (${r.user.email})` : ""}
+                          {r?.createdAt
+                            ? ` · ${new Date(r.createdAt).toLocaleString()}`
+                            : ""}
+                        </p>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-700 whitespace-pre-line">
+                          {r?.text || ""}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onApprovePendingReview(r)}
+                          disabled={draft.isApproving || draft.isRejecting}
+                          className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {draft.isApproving ? "Approving…" : "Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRejectPendingReview(r)}
+                          disabled={draft.isApproving || draft.isRejecting}
+                          className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {draft.isRejecting ? "Rejecting…" : "Reject"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="p-4 text-sm text-slate-600">
+                {status === "loading"
+                  ? "Loading pending reviews…"
+                  : "No pending reviews."}
+              </div>
+            )}
+          </div>
+        </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex items-start justify-between gap-3">
