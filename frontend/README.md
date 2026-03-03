@@ -45,7 +45,7 @@ CLOUDINARY_FOLDER=discover-pauri
 Create `frontend/.env`:
 
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=https://discoverpauri-backend.onrender.com
 ```
 
 ## Run locally (development)
@@ -60,7 +60,7 @@ npm install
 npm run start
 ```
 
-By default the API listens on `http://localhost:5000`.
+When running locally, the API listens on `http://localhost:5000` (unless you set `PORT`).
 
 ### 2) Frontend
 
@@ -116,7 +116,7 @@ npm run build
 
 Set the environment variable:
 
-- `VITE_API_URL=https://<your-backend-host>`
+- `VITE_API_URL=https://discoverpauri-backend.onrender.com`
 
 If you want to run everything locally, set `VITE_API_URL=http://localhost:5000` instead.
 
