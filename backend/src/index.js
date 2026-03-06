@@ -12,6 +12,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import tripPlanRoutes from "./routes/tripPlan.routes.js";
+import weatherRoutes from "./routes/weather.routes.js";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/trips", tripPlanRoutes);
+app.use("/api/weather", weatherRoutes);
 
 app.get("/", (_req, res) => {
   res.json({ ok: true, name: "Discover Pauri API" });

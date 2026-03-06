@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { logout } from "../api/auth";
 import { getDestinationBySlug } from "../api/destinations";
 import { getApprovedReviews, submitReview } from "../api/reviews";
+import WeatherWidget from "../components/WeatherWidget";
 
 function joinList(value) {
   if (!Array.isArray(value)) return "";
@@ -93,6 +94,8 @@ export default function DestinationDetailsPage() {
   const district = destination?.location?.district || "";
   const state = destination?.location?.state || "";
   const locationText = [district, state].filter(Boolean).join(", ");
+
+  const weatherCity = district || destination?.name || "";
 
   const bestTimeText = joinList(destination?.bestTimeToVisit);
 
@@ -321,6 +324,9 @@ export default function DestinationDetailsPage() {
               </section>
 
               <aside className="lg:col-span-2">
+                <div className="mb-6">
+                  <WeatherWidget city={weatherCity} />
+                </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-base font-semibold">Details</h2>
 
