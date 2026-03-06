@@ -13,6 +13,7 @@ import AdminPage from "./pages/AdminPage";
 import AdminDestinationFormPage from "./pages/AdminDestinationFormPage";
 import TaxiRequestPage from "./pages/TaxiRequestPage";
 import TripPlannerPage from "./pages/TripPlannerPage";
+import MyTripsPage from "./pages/MyTripsPage";
 
 function App() {
   return (
@@ -66,6 +67,14 @@ function App() {
         />
         <Route path="/taxi-request" element={<TaxiRequestPage />} />
         <Route path="/trip-planner" element={<TripPlannerPage />} />
+        <Route
+          path="/my-trips"
+          element={
+            <RequireAuth>
+              <MyTripsPage />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

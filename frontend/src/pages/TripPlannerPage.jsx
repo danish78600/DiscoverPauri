@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { generateTripPlan } from "../api/tripPlanner";
+import { saveTripPlan } from "../api/trips";
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -47,7 +48,6 @@ function parsePlanText(rawText) {
   }
 
   const lines = text.split(/\r?\n/).map((l) => l.replace(/\s+$/, ""));
-
   /** @type {string[][]} */
   const blocks = [];
   /** @type {string[]} */
@@ -184,6 +184,7 @@ function renderTextLines(lines) {
 }
 
 export default function TripPlannerPage() {
+  const token = useMemo(() => localStorage.getItem("dp_token"), []);
   const [destination, setDestination] = useState("");
   const [from, setFrom] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -194,6 +195,8 @@ export default function TripPlannerPage() {
   const [interests, setInterests] = useState("nature, temples, local food");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedTripId, setSavedTripId] = useState(null);
 
   const [result, setResult] = useState(null);
 
@@ -232,6 +235,7 @@ export default function TripPlannerPage() {
     try {
       setIsSubmitting(true);
       setResult(null);
+      setSavedTripId(null);
 
       const data = await generateTripPlan(payload);
       setResult(data);
@@ -243,6 +247,49 @@ export default function TripPlannerPage() {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function onSave() {
+    if (isSaving) return;
+
+    if (!token) {
+      toast.error("Please log in to save trips");
+      return;
+    }
+
+    if (!plan) {
+      toast.error("Generate a plan first");
+      return;
+    }
+
+    const planText =
+      typeof plan === "string" ? plan : JSON.stringify(plan, null, 2);
+
+    const payload = {
+      destination: cleanString(destination),
+      from: cleanString(from),
+      startDate,
+      days: cleanString(days),
+      travelers: cleanString(travelers),
+      budget: cleanString(budget),
+      pace,
+      interests: cleanString(interests),
+      notes: cleanString(notes),
+      planText,
+      aiProvider: "gemini",
+    };
+
+    try {
+      setIsSaving(true);
+      const created = await saveTripPlan(payload, token);
+      const id = created && typeof created === "object" ? created._id : null;
+      if (id) setSavedTripId(String(id));
+      toast.success("Saved to My Trips");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save trip");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -440,22 +487,38 @@ export default function TripPlannerPage() {
                       ? parsedTextPlan.title
                       : "Your itinerary"}
                 </h2>
-                {typeof plan === "string" ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(plan);
-                        toast.success("Copied itinerary");
-                      } catch {
-                        toast.error("Could not copy");
-                      }
-                    }}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+                    onClick={onSave}
+                    disabled={isSaving || Boolean(savedTripId)}
+                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Copy
+                    {savedTripId ? "Saved" : isSaving ? "Saving…" : "Save"}
                   </button>
-                ) : null}
+                  <Link
+                    to="/my-trips"
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                  >
+                    My Trips
+                  </Link>
+                  {typeof plan === "string" ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(plan);
+                          toast.success("Copied itinerary");
+                        } catch {
+                          toast.error("Could not copy");
+                        }
+                      }}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+                    >
+                      Copy
+                    </button>
+                  ) : null}
+                </div>
               </div>
               {typeof plan === "object" && plan && "summary" in plan ? (
                 <p className="mt-2 text-base leading-relaxed text-slate-700">
