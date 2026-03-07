@@ -63,6 +63,9 @@ export async function getWeatherByCity(req, res) {
       humidity: toNumberOrNull(data?.main?.humidity),
       windSpeed: toNumberOrNull(data?.wind?.speed),
       icon: cleanString(weather0?.icon),
+      sunrise: toNumberOrNull(data?.sys?.sunrise),
+      sunset: toNumberOrNull(data?.sys?.sunset),
+      timezoneOffset: toNumberOrNull(data?.timezone),
     });
   } catch (err) {
     const status = err?.response?.status;

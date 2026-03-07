@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { logout } from "../api/auth";
 import { getDestinationBySlug } from "../api/destinations";
 import { getApprovedReviews, submitReview } from "../api/reviews";
+import DestinationMapCard from "../components/DestinationMapCard";
 import WeatherWidget from "../components/WeatherWidget";
 
 function joinList(value) {
@@ -184,7 +185,7 @@ export default function DestinationDetailsPage() {
 
   return (
     <div className="min-h-dvh bg-white text-slate-900">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-1000 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link to="/" className="font-semibold tracking-tight">
             Discover Pauri
@@ -327,6 +328,17 @@ export default function DestinationDetailsPage() {
                 <div className="mb-6">
                   <WeatherWidget city={weatherCity} />
                 </div>
+
+                <div className="mb-6">
+                  <DestinationMapCard
+                    destinationName={destination?.name || ""}
+                    locationText={locationText}
+                    coordinates={destination?.location?.coordinates}
+                    googleMapsUrl={destination?.googleMapsUrl}
+                    nearbyPlaces={destination?.nearbyPlaces}
+                  />
+                </div>
+
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-base font-semibold">Details</h2>
 

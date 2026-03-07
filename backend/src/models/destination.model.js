@@ -37,6 +37,23 @@ const destinationSchema = new mongoose.Schema(
     howToReach: { type: String, trim: true, default: "" },
     thingsToCarry: { type: [String], default: [] },
 
+    googleMapsUrl: { type: String, trim: true, default: "" },
+
+    nearbyPlaces: {
+      type: [
+        {
+          name: { type: String, trim: true, default: "" },
+          description: { type: String, trim: true, default: "" },
+          googleMapsUrl: { type: String, trim: true, default: "" },
+          coordinates: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null },
+          },
+        },
+      ],
+      default: [],
+    },
+
     isFeatured: { type: Boolean, default: false, index: true },
 
     averageRating: { type: Number, default: 0, min: 0, max: 5 },

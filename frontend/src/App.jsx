@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import "leaflet/dist/leaflet.css";
 import { Toaster } from "react-hot-toast";
 import LandingPage from "./pages/LandingPage";
 import BrowseTreksPage from "./pages/BrowseTreksPage";

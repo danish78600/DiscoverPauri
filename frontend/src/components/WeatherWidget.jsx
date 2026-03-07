@@ -17,6 +17,21 @@ function formatWind(value) {
   return `${n.toFixed(1)} m/s`;
 }
 
+function formatTime(epochSeconds, timezoneOffsetSeconds) {
+  const ts = Number(epochSeconds);
+  if (!Number.isFinite(ts)) return "—";
+
+  const offset = Number(timezoneOffsetSeconds);
+  const safeOffset = Number.isFinite(offset) ? offset : 0;
+
+  const date = new Date((ts + safeOffset) * 1000);
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export default function WeatherWidget({ city }) {
   const safeCity = useMemo(() => cleanString(city), [city]);
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
@@ -129,6 +144,18 @@ export default function WeatherWidget({ city }) {
               <dt className="text-slate-600">Wind</dt>
               <dd className="mt-1 font-semibold text-slate-900">
                 {formatWind(data?.windSpeed)}
+              </dd>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <dt className="text-slate-600">Sunrise</dt>
+              <dd className="mt-1 font-semibold text-slate-900">
+                {formatTime(data?.sunrise, data?.timezoneOffset)}
+              </dd>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <dt className="text-slate-600">Sunset</dt>
+              <dd className="mt-1 font-semibold text-slate-900">
+                {formatTime(data?.sunset, data?.timezoneOffset)}
               </dd>
             </div>
           </dl>

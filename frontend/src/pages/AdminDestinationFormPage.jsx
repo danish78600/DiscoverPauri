@@ -33,6 +33,76 @@ function joinList(value) {
     .join(", ");
 }
 
+function toNumberOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const n = Number(text);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatNearbyPlaces(value) {
+  if (!Array.isArray(value) || !value.length) return "";
+
+  return value
+    .map((p) => {
+      const name = cleanString(p?.name);
+      const lat = toNumberOrNull(p?.coordinates?.lat);
+      const lng = toNumberOrNull(p?.coordinates?.lng);
+      const url = cleanString(p?.googleMapsUrl);
+      const description = cleanString(p?.description);
+
+      if (lat === null || lng === null) return "";
+
+      return [
+        name || "Nearby place",
+        String(lat),
+        String(lng),
+        url,
+        description,
+      ]
+        .map((v) => String(v ?? "").trim())
+        .join(" | ")
+        .trim();
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function parseNearbyPlaces(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const result = [];
+
+  for (const line of lines) {
+    const parts = (line.includes("|") ? line.split("|") : line.split(",")).map(
+      (p) => p.trim(),
+    );
+
+    if (parts.length < 3) continue;
+
+    const name = cleanString(parts[0]);
+    const lat = toNumberOrNull(parts[1]);
+    const lng = toNumberOrNull(parts[2]);
+    const googleMapsUrl = cleanString(parts[3]);
+    const description = cleanString(parts.slice(4).join(" | "));
+
+    if (lat === null || lng === null) continue;
+
+    result.push({
+      name,
+      description,
+      googleMapsUrl,
+      coordinates: { lat, lng },
+    });
+  }
+
+  return result;
+}
+
 export default function AdminDestinationFormPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -54,6 +124,11 @@ export default function AdminDestinationFormPage() {
 
   const [district, setDistrict] = useState(DEFAULT_DISTRICT);
   const [stateName, setStateName] = useState(DEFAULT_STATE);
+
+  const [latitudeText, setLatitudeText] = useState("");
+  const [longitudeText, setLongitudeText] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [nearbyPlacesText, setNearbyPlacesText] = useState("");
 
   const [bestTimeToVisitText, setBestTimeToVisitText] = useState("");
   const [entryFee, setEntryFee] = useState("");
@@ -97,6 +172,23 @@ export default function AdminDestinationFormPage() {
 
       setDistrict(cleanString(data?.location?.district) || DEFAULT_DISTRICT);
       setStateName(cleanString(data?.location?.state) || DEFAULT_STATE);
+
+      setLatitudeText(
+        data?.location?.coordinates?.lat === null ||
+          data?.location?.coordinates?.lat === undefined
+          ? ""
+          : String(data.location.coordinates.lat),
+      );
+      setLongitudeText(
+        data?.location?.coordinates?.lng === null ||
+          data?.location?.coordinates?.lng === undefined
+          ? ""
+          : String(data.location.coordinates.lng),
+      );
+
+      setGoogleMapsUrl(cleanString(data?.googleMapsUrl));
+
+      setNearbyPlacesText(formatNearbyPlaces(data?.nearbyPlaces));
 
       setBestTimeToVisitText(joinList(data?.bestTimeToVisit));
       setEntryFee(cleanString(data?.entryFee));
@@ -194,6 +286,10 @@ export default function AdminDestinationFormPage() {
       location: {
         district: cleanString(district) || DEFAULT_DISTRICT,
         state: cleanString(stateName) || DEFAULT_STATE,
+        coordinates: {
+          lat: toNumberOrNull(cleanString(latitudeText)),
+          lng: toNumberOrNull(cleanString(longitudeText)),
+        },
       },
 
       bestTimeToVisit: splitList(bestTimeToVisitText),
@@ -202,8 +298,11 @@ export default function AdminDestinationFormPage() {
       howToReach: cleanString(howToReach),
       thingsToCarry: splitList(thingsToCarryText),
 
+      googleMapsUrl: cleanString(googleMapsUrl),
+
       isFeatured: Boolean(isFeatured),
       images: Array.isArray(images) ? images.filter(Boolean) : [],
+      nearbyPlaces: parseNearbyPlaces(nearbyPlacesText),
     };
 
     try {
@@ -368,6 +467,69 @@ export default function AdminDestinationFormPage() {
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 />
               </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium" htmlFor="latitude">
+                  Latitude
+                </label>
+                <input
+                  id="latitude"
+                  value={latitudeText}
+                  onChange={(e) => setLatitudeText(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="e.g., 30.1502"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium" htmlFor="longitude">
+                  Longitude
+                </label>
+                <input
+                  id="longitude"
+                  value={longitudeText}
+                  onChange={(e) => setLongitudeText(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  placeholder="e.g., 78.7772"
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium" htmlFor="googleMapsUrl">
+                Google Maps URL
+              </label>
+              <input
+                id="googleMapsUrl"
+                value={googleMapsUrl}
+                onChange={(e) => setGoogleMapsUrl(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="Paste the Google Maps share link (recommended)"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                If you paste a place share link, Google Maps will open with the
+                place card and photos.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium" htmlFor="nearbyPlaces">
+                Nearby tourist places
+              </label>
+              <textarea
+                id="nearbyPlaces"
+                value={nearbyPlacesText}
+                onChange={(e) => setNearbyPlacesText(e.target.value)}
+                className="mt-1 min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="Format (one per line):\nPlace name | lat | lng | Google Maps URL (optional) | description (optional)"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Use <span className="font-medium">|</span> or commas as a
+                separator.
+              </p>
             </div>
 
             <div>
