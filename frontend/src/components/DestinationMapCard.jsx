@@ -76,12 +76,21 @@ export default function DestinationMapCard({
   }, [googleMapsUrl, hasCoords, lat, lng, destinationName]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6">
-      <h2 className="text-base font-semibold">Map</h2>
+    <div className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">
+            Map
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Nearby landmarks and location
+          </p>
+        </div>
+      </div>
 
       {hasCoords ? (
         <>
-          <div className="mt-4 h-64 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 sm:h-72">
+          <div className="mt-4 h-64 overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-100 sm:h-72">
             <MapContainer
               key={`${lat},${lng}`}
               center={[lat, lng]}

@@ -1,7 +1,22 @@
 import { useMemo, useState } from "react";
+import {
+  CalendarClock,
+  CarTaxiFront,
+  MapPinned,
+  Navigation,
+  Route,
+  Users,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createTaxiRequest } from "../api/taxiRequests";
+
+import BookingButton from "../components/taxiRequest/BookingButton";
+import BookingField from "../components/taxiRequest/BookingField";
+import BookingPreviewCard from "../components/taxiRequest/BookingPreviewCard";
+import BookingSelect from "../components/taxiRequest/BookingSelect";
+import PhoneField from "../components/taxiRequest/PhoneField";
+import StepPill from "../components/taxiRequest/StepPill";
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -58,13 +73,42 @@ export default function TaxiRequestPage() {
   const [tripType, setTripType] = useState("local");
   const [contactNumber, setContactNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
   const destinationName = cleanString(preset.destinationName);
   const destinationId = cleanString(preset.destinationId) || null;
 
+  const errors = useMemo(() => {
+    const pickup = cleanString(pickupLocation);
+    const drop = cleanString(dropLocation);
+    const contact = cleanString(contactNumber);
+    const pax = Number(passengers);
+
+    return {
+      pickupLocation: pickup ? "" : "Pickup location is required",
+      dropLocation: drop ? "" : "Drop location is required",
+      dateTime: dateTime ? "" : "Date & time is required",
+      passengers:
+        Number.isFinite(pax) && pax >= 1
+          ? ""
+          : "Number of passengers is required",
+      tripType: tripType ? "" : "Trip type is required",
+      contactNumber: contact ? "" : "Contact number is required",
+    };
+  }, [
+    pickupLocation,
+    dropLocation,
+    dateTime,
+    passengers,
+    tripType,
+    contactNumber,
+  ]);
+
   async function onSubmit(e) {
     e.preventDefault();
     if (isSubmitting) return;
+
+    setShowErrors(true);
 
     const payload = {
       destinationId,
@@ -122,140 +166,185 @@ export default function TaxiRequestPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-white text-slate-900">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <Link to="/" className="font-semibold tracking-tight">
-            Discover Pauri
-          </Link>
-          <Link
-            to="/destinations"
-            className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-          >
-            Back
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-dvh bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
+      <main className="mx-auto flex max-w-2xl flex-col px-4 py-10 sm:py-14">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/70 p-5 shadow-xl shadow-slate-900/5 backdrop-blur-2xl sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900"
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-2xl border border-slate-200 bg-white">
+                  <CarTaxiFront
+                    className="h-5 w-5 text-indigo-600"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="truncate">Discover Pauri</span>
+              </Link>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+                Taxi request
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                Fill the details and we’ll assign a local taxi/driver.
+              </p>
+            </div>
 
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Taxi request
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Fill the details and we’ll assign a local taxi/driver.
-        </p>
-
-        {destinationName ? (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            Destination: <span className="font-medium">{destinationName}</span>
+            <div className="flex flex-col items-end gap-3">
+              <StepPill
+                steps={["Details", "Confirm", "Send"]}
+                currentStep={1}
+                tone="light"
+              />
+              <BookingButton
+                variant="secondary"
+                tone="light"
+                type="button"
+                onClick={() => navigate("/destinations")}
+              >
+                Back
+              </BookingButton>
+            </div>
           </div>
-        ) : null}
 
-        <form
-          onSubmit={onSubmit}
-          className="mt-6 rounded-2xl border border-slate-200 bg-white p-6"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium" htmlFor="pickup">
-                Pickup location
-              </label>
-              <input
-                id="pickup"
-                value={pickupLocation}
-                onChange={(e) => setPickupLocation(e.target.value)}
-                placeholder="Enter pickup location"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              />
+          {destinationName ? (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800">
+                <MapPinned
+                  className="h-4 w-4 text-indigo-600"
+                  aria-hidden="true"
+                />
+                <span className="max-w-[22rem] truncate">
+                  {destinationName}
+                </span>
+              </span>
+              {!destinationId ? (
+                <span className="text-xs text-slate-500">
+                  (Destination not linked)
+                </span>
+              ) : null}
             </div>
+          ) : null}
 
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium" htmlFor="drop">
-                Drop location
-              </label>
-              <input
-                id="drop"
-                value={dropLocation}
-                onChange={(e) => setDropLocation(e.target.value)}
-                placeholder="Enter drop location"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              />
-            </div>
+          <form onSubmit={onSubmit} className="mt-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <BookingField
+                  label="Pickup location"
+                  value={pickupLocation}
+                  onChange={(e) => setPickupLocation(e.target.value)}
+                  placeholder="Enter pickup location"
+                  icon={(props) => <Navigation {...props} />}
+                  errorText={showErrors ? errors.pickupLocation : ""}
+                />
+              </div>
 
-            <div>
-              <label className="text-sm font-medium" htmlFor="datetime">
-                Date & time
-              </label>
-              <input
-                id="datetime"
+              <div className="sm:col-span-2">
+                <BookingField
+                  label="Drop location"
+                  value={dropLocation}
+                  onChange={(e) => setDropLocation(e.target.value)}
+                  placeholder="Enter drop location"
+                  icon={(props) => <MapPinned {...props} />}
+                  errorText={showErrors ? errors.dropLocation : ""}
+                />
+              </div>
+
+              <BookingField
+                label="Date & time"
                 type="datetime-local"
                 value={dateTime}
                 onChange={(e) => setDateTime(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                icon={(props) => <CalendarClock {...props} />}
+                errorText={showErrors ? errors.dateTime : ""}
               />
-            </div>
 
-            <div>
-              <label className="text-sm font-medium" htmlFor="passengers">
-                Number of passengers
-              </label>
-              <input
-                id="passengers"
-                inputMode="numeric"
+              <BookingField
+                label="Passengers"
                 value={passengers}
                 onChange={(e) =>
                   setPassengers(toPositiveIntOrEmpty(e.target.value))
                 }
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                inputMode="numeric"
+                placeholder="1"
+                icon={(props) => <Users {...props} />}
+                errorText={showErrors ? errors.passengers : ""}
               />
-            </div>
 
-            <div>
-              <label className="text-sm font-medium" htmlFor="triptype">
-                Trip type
-              </label>
-              <select
-                id="triptype"
+              <BookingSelect
+                label="Trip type"
                 value={tripType}
                 onChange={(e) => setTripType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="local">Local</option>
-                <option value="outstation">Outstation</option>
-              </select>
-            </div>
+                icon={(props) => <Route {...props} />}
+                options={[
+                  { value: "local", label: "Local" },
+                  { value: "outstation", label: "Outstation" },
+                ]}
+              />
 
-            <div>
-              <label className="text-sm font-medium" htmlFor="contact">
-                Contact number
-              </label>
-              <input
-                id="contact"
-                type="tel"
+              <PhoneField
                 value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                placeholder="Phone / WhatsApp"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                onChange={(combined) => setContactNumber(combined)}
+                label="Contact number"
+                helperText="Phone/WhatsApp where driver can reach you."
+                errorText={showErrors ? errors.contactNumber : ""}
+                required={false}
               />
             </div>
-          </div>
 
-          <div className="mt-6 flex items-center justify-end gap-2">
-            <Link
-              to="/destinations"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            >
-              {isSubmitting ? "Requesting…" : "Request Taxi"}
-            </button>
-          </div>
-        </form>
+            <div className="mt-6">
+              <BookingPreviewCard
+                title="Estimated fare"
+                subtitle="A quick estimate will appear here once confirmed."
+                icon={CarTaxiFront}
+                tone="light"
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Distance
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      —
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Time
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      —
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Fare
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      —
+                    </p>
+                  </div>
+                </div>
+              </BookingPreviewCard>
+            </div>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <BookingButton
+                variant="secondary"
+                tone="light"
+                type="button"
+                className="sm:mr-auto"
+                onClick={() => navigate("/destinations")}
+              >
+                Cancel
+              </BookingButton>
+              <BookingButton type="submit" loading={isSubmitting}>
+                Request Taxi
+              </BookingButton>
+            </div>
+          </form>
+        </div>
       </main>
     </div>
   );

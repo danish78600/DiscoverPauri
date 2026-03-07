@@ -5,6 +5,9 @@ import { logout } from "../api/auth";
 import { getDestinationBySlug } from "../api/destinations";
 import { getApprovedReviews, submitReview } from "../api/reviews";
 import DestinationMapCard from "../components/DestinationMapCard";
+import DetailsCard from "../components/DetailsCard";
+import ReviewCard from "../components/ReviewCard";
+import StarRating from "../components/StarRating";
 import WeatherWidget from "../components/WeatherWidget";
 
 function joinList(value) {
@@ -175,16 +178,17 @@ export default function DestinationDetailsPage() {
     }
   }
 
-  function formatStars(value) {
-    const n = Number(value);
-    const safe = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 0;
-    const full = "★".repeat(Math.round(safe));
-    const empty = "☆".repeat(5 - Math.round(safe));
-    return `${full}${empty}`;
-  }
+  const averageRating =
+    typeof destination?.averageRating === "number"
+      ? destination.averageRating
+      : null;
+  const totalReviews =
+    typeof destination?.totalReviews === "number"
+      ? destination.totalReviews
+      : null;
 
   return (
-    <div className="min-h-dvh bg-white text-slate-900">
+    <div className="min-h-dvh bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-1000 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link to="/" className="font-semibold tracking-tight">
@@ -227,10 +231,42 @@ export default function DestinationDetailsPage() {
           ← Back to Destinations
         </Link>
 
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {destination?.name ||
-            (status === "loading" ? "Loading…" : "Destination")}
-        </h1>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              {destination?.name ||
+                (status === "loading" ? "Loading…" : "Destination")}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
+              {locationText ? (
+                <p className="font-medium text-slate-700">{locationText}</p>
+              ) : null}
+
+              {averageRating != null ? (
+                <div className="flex items-center gap-2">
+                  <StarRating value={averageRating} size="md" />
+                  <p className="font-medium text-slate-900">
+                    {averageRating.toFixed(1)}
+                  </p>
+                  {totalReviews ? (
+                    <p className="text-slate-500">({totalReviews} reviews)</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {destination?.googleMapsUrl ? (
+            <a
+              href={destination.googleMapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-fit items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+            >
+              Open in Maps
+            </a>
+          ) : null}
+        </div>
 
         {status === "loading" ? (
           <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
@@ -263,283 +299,211 @@ export default function DestinationDetailsPage() {
         ) : null}
 
         {status === "success" && destination ? (
-          <>
-            <div className="mt-8 grid gap-6 lg:grid-cols-5">
-              <section className="lg:col-span-3">
-                {cover ? (
-                  <div className="aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                    <img
-                      src={cover}
-                      alt={
-                        destination.name
-                          ? `${destination.name} cover`
-                          : "Destination cover"
-                      }
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : (
-                  <div className="aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-slate-100" />
-                )}
-
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-base font-semibold">About</h2>
-                  {destination.shortDescription ? (
-                    <p className="mt-3 text-sm text-slate-700">
-                      {destination.shortDescription}
-                    </p>
-                  ) : null}
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600 whitespace-pre-line">
-                    {destination.description || "No description provided."}
-                  </p>
-                </div>
-
-                {images.length > 1 ? (
-                  <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-                    <h2 className="text-base font-semibold">Gallery</h2>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {images.slice(1).map((url) => (
-                        <a
-                          key={url}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-                        >
-                          <img
-                            src={url}
-                            alt={
-                              destination.name
-                                ? `${destination.name} image`
-                                : "Destination image"
-                            }
-                            className="h-40 w-full object-cover"
-                            loading="lazy"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-
-              <aside className="lg:col-span-2">
-                <div className="mb-6">
-                  <WeatherWidget city={weatherCity} />
-                </div>
-
-                <div className="mb-6">
-                  <DestinationMapCard
-                    destinationName={destination?.name || ""}
-                    locationText={locationText}
-                    coordinates={destination?.location?.coordinates}
-                    googleMapsUrl={destination?.googleMapsUrl}
-                    nearbyPlaces={destination?.nearbyPlaces}
+          <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
+            <div className="lg:col-span-8 space-y-6">
+              {cover ? (
+                <div className="group relative aspect-video overflow-hidden rounded-3xl border border-slate-200/70 bg-slate-100 shadow-sm transition-shadow hover:shadow-md">
+                  <img
+                    src={cover}
+                    alt={
+                      destination.name
+                        ? `${destination.name} cover`
+                        : "Destination cover"
+                    }
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                    loading="lazy"
                   />
                 </div>
+              ) : (
+                <div className="aspect-video overflow-hidden rounded-3xl border border-slate-200/70 bg-slate-100 shadow-sm" />
+              )}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-base font-semibold">Details</h2>
+              <div className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                  About
+                </h2>
+                {destination.shortDescription ? (
+                  <p className="mt-3 text-sm font-medium text-slate-700">
+                    {destination.shortDescription}
+                  </p>
+                ) : null}
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                  {destination.description || "No description provided."}
+                </p>
+              </div>
 
-                  <dl className="mt-4 grid gap-3 text-sm">
-                    {locationText ? (
-                      <div className="flex items-center justify-between gap-6">
-                        <dt className="text-slate-600">Location</dt>
-                        <dd className="font-medium text-right">
-                          {locationText}
-                        </dd>
-                      </div>
-                    ) : null}
+              {images.length > 1 ? (
+                <div className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                    Gallery
+                  </h2>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {images.slice(1).map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group block overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-100 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                      >
+                        <img
+                          src={url}
+                          alt={
+                            destination.name
+                              ? `${destination.name} image`
+                              : "Destination image"
+                          }
+                          className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                          loading="lazy"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
-                    {bestTimeText ? (
-                      <div className="flex items-center justify-between gap-6">
-                        <dt className="text-slate-600">Best time</dt>
-                        <dd className="font-medium text-right">
-                          {bestTimeText}
-                        </dd>
-                      </div>
-                    ) : null}
+              <DestinationMapCard
+                destinationName={destination?.name || ""}
+                locationText={locationText}
+                coordinates={destination?.location?.coordinates}
+                googleMapsUrl={destination?.googleMapsUrl}
+                nearbyPlaces={destination?.nearbyPlaces}
+              />
 
-                    {destination.entryFee ? (
-                      <div className="flex items-center justify-between gap-6">
-                        <dt className="text-slate-600">Entry fee</dt>
-                        <dd className="font-medium text-right">
-                          {destination.entryFee}
-                        </dd>
-                      </div>
-                    ) : null}
+              <div className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                      Reviews
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Reviews are visible after admin approval.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadReviews}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
 
-                    {destination.timing ? (
-                      <div className="flex items-center justify-between gap-6">
-                        <dt className="text-slate-600">Timing</dt>
-                        <dd className="font-medium text-right">
-                          {destination.timing}
-                        </dd>
-                      </div>
-                    ) : null}
+                <div className="mt-5">
+                  {reviewsStatus === "loading" ? (
+                    <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-sm text-slate-600">
+                      Loading reviews…
+                    </div>
+                  ) : null}
 
-                    {typeof destination.averageRating === "number" ? (
-                      <div className="flex items-center justify-between gap-6">
-                        <dt className="text-slate-600">Rating</dt>
-                        <dd className="font-medium text-right">
-                          {destination.totalReviews
-                            ? `${destination.averageRating.toFixed(1)} (${destination.totalReviews})`
-                            : "—"}
-                        </dd>
-                      </div>
-                    ) : null}
-                  </dl>
-
-                  {destination.howToReach ? (
-                    <div className="mt-6">
-                      <h3 className="text-sm font-semibold">How to reach</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-slate-600 whitespace-pre-line">
-                        {destination.howToReach}
+                  {reviewsStatus === "error" ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <p className="text-sm font-medium text-red-900">
+                        Couldn’t load reviews
+                      </p>
+                      <p className="mt-1 text-sm text-red-800">
+                        {reviewsErrorMessage}
                       </p>
                     </div>
                   ) : null}
+
+                  {reviewsStatus !== "loading" && reviews.length ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {reviews.map((r) => (
+                        <ReviewCard key={r?._id} review={r} />
+                      ))}
+                    </div>
+                  ) : reviewsStatus !== "loading" ? (
+                    <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-sm text-slate-600">
+                      No approved reviews yet.
+                    </div>
+                  ) : null}
                 </div>
-              </aside>
+
+                <div className="mt-8 border-t border-slate-200 pt-6">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Write a review
+                  </h3>
+                  {!token ? (
+                    <p className="mt-2 text-sm text-slate-600">
+                      <Link
+                        to="/login"
+                        className="font-semibold text-slate-900 hover:underline"
+                      >
+                        Log in
+                      </Link>{" "}
+                      to submit a review.
+                    </p>
+                  ) : (
+                    <form onSubmit={onSubmitReview} className="mt-4 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="sm:col-span-1">
+                          <label
+                            className="text-sm font-medium text-slate-900"
+                            htmlFor="review-rating"
+                          >
+                            Rating
+                          </label>
+                          <select
+                            id="review-rating"
+                            value={reviewRating}
+                            onChange={(e) => setReviewRating(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+                          >
+                            <option value="5">5</option>
+                            <option value="4">4</option>
+                            <option value="3">3</option>
+                            <option value="2">2</option>
+                            <option value="1">1</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label
+                            className="text-sm font-medium text-slate-900"
+                            htmlFor="review-text"
+                          >
+                            Review
+                          </label>
+                          <textarea
+                            id="review-text"
+                            value={reviewText}
+                            onChange={(e) => setReviewText(e.target.value)}
+                            className="mt-1 min-h-28 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+                            placeholder="Share your experience…"
+                            maxLength={2000}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={isSubmittingReview}
+                          className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {isSubmittingReview ? "Submitting…" : "Submit"}
+                        </button>
+                        <p className="text-xs text-slate-500">
+                          Submission is admin-moderated.
+                        </p>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold">Reviews</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Reviews are visible after admin approval.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadReviews}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
-                >
-                  Refresh
-                </button>
+            <aside className="lg:col-span-4">
+              <div className="grid gap-6 lg:sticky lg:top-24">
+                <WeatherWidget city={weatherCity} />
+                <DetailsCard
+                  destination={destination}
+                  locationText={locationText}
+                  bestTimeText={bestTimeText}
+                />
               </div>
-
-              <div className="mt-4">
-                {reviewsStatus === "loading" ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    Loading reviews…
-                  </div>
-                ) : null}
-
-                {reviewsStatus === "error" ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                    <p className="text-sm font-medium text-red-900">
-                      Couldn’t load reviews
-                    </p>
-                    <p className="mt-1 text-sm text-red-800">
-                      {reviewsErrorMessage}
-                    </p>
-                  </div>
-                ) : null}
-
-                {reviewsStatus !== "loading" && reviews.length ? (
-                  <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200">
-                    {reviews.map((r) => (
-                      <li key={r?._id} className="px-4 py-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900">
-                              {r?.user?.name || "User"}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-600">
-                              <span className="font-medium text-slate-700">
-                                {formatStars(r?.rating)}
-                              </span>
-                              {r?.createdAt
-                                ? ` · ${new Date(r.createdAt).toLocaleDateString()}`
-                                : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-sm leading-relaxed text-slate-700 whitespace-pre-line">
-                          {r?.text || ""}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : reviewsStatus !== "loading" ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    No approved reviews yet.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <h3 className="text-sm font-semibold">Write a review</h3>
-                {!token ? (
-                  <p className="mt-2 text-sm text-slate-600">
-                    <Link
-                      to="/login"
-                      className="font-medium text-slate-900 hover:underline"
-                    >
-                      Log in
-                    </Link>{" "}
-                    to submit a review.
-                  </p>
-                ) : (
-                  <form onSubmit={onSubmitReview} className="mt-3 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="sm:col-span-1">
-                        <label
-                          className="text-sm font-medium"
-                          htmlFor="review-rating"
-                        >
-                          Rating
-                        </label>
-                        <select
-                          id="review-rating"
-                          value={reviewRating}
-                          onChange={(e) => setReviewRating(e.target.value)}
-                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                        >
-                          <option value="5">5</option>
-                          <option value="4">4</option>
-                          <option value="3">3</option>
-                          <option value="2">2</option>
-                          <option value="1">1</option>
-                        </select>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label
-                          className="text-sm font-medium"
-                          htmlFor="review-text"
-                        >
-                          Review
-                        </label>
-                        <textarea
-                          id="review-text"
-                          value={reviewText}
-                          onChange={(e) => setReviewText(e.target.value)}
-                          className="mt-1 min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                          placeholder="Share your experience…"
-                          maxLength={2000}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="submit"
-                        disabled={isSubmittingReview}
-                        className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isSubmittingReview ? "Submitting…" : "Submit"}
-                      </button>
-                      <p className="self-center text-xs text-slate-500">
-                        Submission is admin-moderated.
-                      </p>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </section>
-          </>
+            </aside>
+          </div>
         ) : null}
       </main>
     </div>

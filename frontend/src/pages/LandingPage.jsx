@@ -31,8 +31,10 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const [token, setToken] = useState(() => localStorage.getItem("dp_token"));
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  const [assignedTrip, setAssignedTrip] = useState(null);
+  const [taxiRequest, setTaxiRequest] = useState(null);
 
   const taxiPublicToken = useMemo(() => {
     const key = getTaxiTokenStorageKey(token);
@@ -55,6 +57,8 @@ const LandingPage = () => {
   useEffect(() => {
     let cancelled = false;
 
+    let intervalId = null;
+
     async function loadAssignedTrip() {
       if (!taxiPublicToken) return;
 
@@ -74,22 +78,65 @@ const LandingPage = () => {
             : "";
 
         const isAssigned = status === "assigned" || status === "completed";
-        if (!isAssigned || (!driverName && !driverContact)) {
-          setAssignedTrip(null);
-          return;
-        }
+        setTaxiRequest(data && typeof data === "object" ? data : null);
 
-        setAssignedTrip(data);
+        if (isAssigned && (driverName || driverContact)) {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
       } catch {
-        if (!cancelled) setAssignedTrip(null);
+        if (!cancelled) setTaxiRequest(null);
       }
     }
 
     void loadAssignedTrip();
+
+    // Poll until assigned so the banner updates without refresh.
+    if (taxiPublicToken) {
+      intervalId = setInterval(() => {
+        void loadAssignedTrip();
+      }, 20000);
+    }
+
     return () => {
       cancelled = true;
+
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, [taxiPublicToken]);
+
+  useEffect(() => {
+    function onScroll() {
+      setIsScrolled(window.scrollY > 8);
+    }
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll("[data-dp-reveal]"));
+    if (!targets.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("dp-reveal--visible");
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.12 },
+    );
+
+    for (const t of targets) observer.observe(t);
+    return () => observer.disconnect();
+  }, []);
 
   async function onLogout() {
     if (isLoggingOut) return;
@@ -107,15 +154,33 @@ const LandingPage = () => {
     } finally {
       localStorage.removeItem("dp_token");
       setToken(null);
-      setAssignedTrip(null);
+      setTaxiRequest(null);
       setIsLoggingOut(false);
       navigate("/");
     }
   }
 
+  function closeMenu() {
+    setIsMenuOpen(false);
+  }
+
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 antialiased">
-      <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/75 backdrop-blur">
+      <a
+        href="#top"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-slate-900 focus:shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400/40"
+      >
+        Skip to content
+      </a>
+
+      <header
+        className={
+          "sticky top-0 z-20 transition " +
+          (isScrolled
+            ? "border-b border-slate-200/70 bg-white/75 backdrop-blur"
+            : "border-b border-transparent bg-transparent")
+        }
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <a
             href="#top"
@@ -123,7 +188,10 @@ const LandingPage = () => {
           >
             Discover Pauri
           </a>
-          <nav className="hidden items-center gap-1 text-sm text-slate-600 sm:flex">
+          <nav
+            aria-label="Homepage"
+            className="hidden items-center gap-1 text-sm text-slate-600 sm:flex"
+          >
             <a
               href="#highlights"
               className="rounded-md px-3 py-2 transition-colors hover:bg-slate-100 hover:text-slate-900"
@@ -144,12 +212,36 @@ const LandingPage = () => {
             </a>
           </nav>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen((v) => !v)}
+              aria-expanded={isMenuOpen}
+              aria-controls="dp-mobile-nav"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:hidden"
+            >
+              <span className="sr-only">Menu</span>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 7H20M4 12H20M4 17H20"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
             {token ? (
               <button
                 type="button"
                 onClick={onLogout}
                 disabled={isLoggingOut}
-                className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                className="hidden items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:inline-flex"
               >
                 {isLoggingOut ? "Logging out…" : "Logout"}
               </button>
@@ -157,13 +249,13 @@ const LandingPage = () => {
               <>
                 <Link
                   to="/login"
-                  className="inline-flex rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  className="hidden rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:inline-flex"
                 >
                   Log in
                 </Link>
                 <Link
                   to="/signup"
-                  className="hidden items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:inline-flex"
+                  className="hidden items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:inline-flex"
                 >
                   Sign up
                 </Link>
@@ -172,49 +264,145 @@ const LandingPage = () => {
             {token ? (
               <Link
                 to="/my-trips"
-                className="hidden items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:inline-flex"
+                className="hidden items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:inline-flex"
               >
                 My Trips
               </Link>
             ) : null}
             <Link
               to="/trip-planner"
-              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="hidden items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow-sm ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:inline-flex"
             >
               Plan a Trip
             </Link>
           </div>
         </div>
+
+        <div
+          id="dp-mobile-nav"
+          className={
+            "sm:hidden " +
+            (isMenuOpen
+              ? "border-t border-slate-200/70 bg-white/80 backdrop-blur"
+              : "hidden")
+          }
+        >
+          <div className="mx-auto max-w-6xl px-4 py-3">
+            <div className="grid gap-2 text-sm">
+              <a
+                href="#highlights"
+                onClick={closeMenu}
+                className="rounded-xl px-3 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Highlights
+              </a>
+              <a
+                href="#treks"
+                onClick={closeMenu}
+                className="rounded-xl px-3 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Treks
+              </a>
+              <a
+                href="#contact"
+                onClick={closeMenu}
+                className="rounded-xl px-3 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Contact
+              </a>
+
+              <div className="mt-2 grid gap-2">
+                {token ? (
+                  <>
+                    <Link
+                      to="/my-trips"
+                      onClick={closeMenu}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                    >
+                      My Trips
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenu();
+                        void onLogout();
+                      }}
+                      disabled={isLoggingOut}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isLoggingOut ? "Logging out…" : "Logout"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={closeMenu}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      to="/signup"
+                      onClick={closeMenu}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                    >
+                      Sign up
+                    </Link>
+                  </>
+                )}
+
+                <Link
+                  to="/trip-planner"
+                  onClick={closeMenu}
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Plan a Trip
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
       </header>
 
-      <main id="top">
-        {assignedTrip ? (
+      <main id="top" className="relative">
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute left-1/2 -top-72 h-96 w-96 -translate-x-1/2 rounded-full bg-slate-200/60 blur-3xl" />
+          <div className="absolute -right-64 top-48 h-80 w-80 rounded-full bg-slate-100 blur-3xl" />
+          <div className="absolute -left-72 top-96 h-80 w-80 rounded-full bg-slate-100 blur-3xl" />
+        </div>
+
+        {taxiRequest &&
+        (taxiRequest.status === "assigned" ||
+          taxiRequest.status === "completed") &&
+        (taxiRequest?.assignedDriver?.name ||
+          taxiRequest?.assignedDriver?.contact) ? (
           <section className="mx-auto max-w-6xl px-4 pt-6">
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm backdrop-blur">
               <p className="text-sm font-semibold text-slate-900">
                 Driver assigned to your trip
               </p>
               <p className="mt-1 text-sm text-slate-700">
                 <span className="font-medium">
-                  {assignedTrip?.assignedDriver?.name || "Driver"}
+                  {taxiRequest?.assignedDriver?.name || "Driver"}
                 </span>
-                {assignedTrip?.assignedDriver?.contact ? (
+                {taxiRequest?.assignedDriver?.contact ? (
                   <>
                     {" "}
                     (
                     <a
-                      href={`tel:${assignedTrip.assignedDriver.contact}`}
+                      href={`tel:${taxiRequest.assignedDriver.contact}`}
                       className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
                     >
-                      {assignedTrip.assignedDriver.contact}
+                      {taxiRequest.assignedDriver.contact}
                     </a>
                     )
                   </>
                 ) : null}{" "}
                 is assigned to you for trip starting at{" "}
                 <span className="font-medium text-slate-900">
-                  {assignedTrip?.dateTime
-                    ? new Date(assignedTrip.dateTime).toLocaleString()
+                  {taxiRequest?.dateTime
+                    ? new Date(taxiRequest.dateTime).toLocaleString()
                     : "(time not set)"}
                 </span>
                 .
@@ -224,17 +412,21 @@ const LandingPage = () => {
         ) : null}
 
         <section className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+          <div
+            className="dp-reveal relative overflow-hidden rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur sm:p-10"
+            data-dp-reveal
+          >
             <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white via-white to-slate-50" />
-            <div className="relative grid items-center gap-10 lg:grid-cols-2">
+            <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-slate-100 blur-2xl" />
+            <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
               <div>
-                <p className="text-sm font-medium text-slate-600">
+                <p className="dp-fade-up text-sm font-medium text-slate-600">
                   Uttarakhand • Himalayas • Local guides
                 </p>
                 <h1 className="mt-3 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
                   Explore Pauri, simply.
                 </h1>
-                <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600">
+                <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
                   Discover scenic treks, viewpoints, and peaceful stays around
                   Pauri Garhwal—curated for quick planning and a relaxed
                   experience.
@@ -243,60 +435,158 @@ const LandingPage = () => {
                 <div className="mt-7 flex flex-wrap gap-3">
                   <Link
                     to="/treks"
-                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
                   >
                     Browse Treks
                   </Link>
                   <Link
                     to="/destinations"
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
                   >
                     Browse Destinations
                   </Link>
                   <a
                     href="#highlights"
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
                   >
                     See Highlights
                   </a>
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-600">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                  <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 shadow-sm backdrop-blur">
                     Local recommendations
                   </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                  <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 shadow-sm backdrop-blur">
                     Easy itineraries
                   </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                  <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 shadow-sm backdrop-blur">
                     Responsible travel
                   </span>
                 </div>
 
-                <dl className="mt-9 grid grid-cols-3 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div>
-                    <dt className="text-xs font-medium text-slate-600">
-                      Best Season
-                    </dt>
-                    <dd className="mt-1 text-sm font-semibold">Mar–Jun</dd>
+                <dl className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                          className="text-slate-700"
+                        >
+                          <path
+                            d="M7 3V6M17 3V6M4 9H20"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M6 5H18C19.1046 5 20 5.89543 20 7V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V7C4 5.89543 4.89543 5 6 5Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <div>
+                        <dt className="text-xs font-medium text-slate-600">
+                          Best season
+                        </dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">
+                          Mar–Jun
+                        </dd>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <dt className="text-xs font-medium text-slate-600">
-                      Trip Style
-                    </dt>
-                    <dd className="mt-1 text-sm font-semibold">
-                      Easy–Moderate
-                    </dd>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                          className="text-slate-700"
+                        >
+                          <path
+                            d="M4 17H20"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M7 17V11.5C7 10.1193 8.11929 9 9.5 9H14.5C15.8807 9 17 10.1193 17 11.5V17"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M9 7L12 4L15 7"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <div>
+                        <dt className="text-xs font-medium text-slate-600">
+                          Trip style
+                        </dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">
+                          Easy–Moderate
+                        </dd>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <dt className="text-xs font-medium text-slate-600">From</dt>
-                    <dd className="mt-1 text-sm font-semibold">Pauri Town</dd>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm backdrop-blur">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                          className="text-slate-700"
+                        >
+                          <path
+                            d="M12 21C15.5 17.5 18 14.6863 18 11C18 7.68629 15.3137 5 12 5C8.68629 5 6 7.68629 6 11C6 14.6863 8.5 17.5 12 21Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M12 13C13.1046 13 14 12.1046 14 11C14 9.89543 13.1046 9 12 9C10.8954 9 10 9.89543 10 11C10 12.1046 10.8954 13 12 13Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      </span>
+                      <div>
+                        <dt className="text-xs font-medium text-slate-600">
+                          Start from
+                        </dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">
+                          Pauri Town
+                        </dd>
+                      </div>
+                    </div>
                   </div>
                 </dl>
               </div>
 
               <div className="relative">
-                <div className="relative aspect-4/3 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
+                <div className="dp-float relative aspect-4/3 w-full overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-sm">
                   <img
                     src={uttrakhandImg}
                     alt="Uttarakhand landscape"
@@ -304,17 +594,31 @@ const LandingPage = () => {
                     loading="lazy"
                   />
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-tr from-slate-900/50 via-slate-900/10 to-transparent" />
-                  <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/80 px-3 py-1 text-xs font-medium text-slate-900 backdrop-blur">
+                  <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/80 px-3 py-1 text-xs font-medium text-slate-900 shadow-sm backdrop-blur">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-900" />
                     Pauri, Uttarakhand
                   </div>
+
+                  <div className="absolute right-3 top-3 flex flex-col gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/80 px-3 py-1 text-xs font-medium text-slate-900 shadow-sm backdrop-blur">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />
+                      Golden hour views
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/80 px-3 py-1 text-xs font-medium text-slate-900 shadow-sm backdrop-blur">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-500" />
+                      Calm, uncrowded routes
+                    </div>
+                  </div>
                 </div>
-                <div className="pointer-events-none absolute -bottom-5 -left-5 hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:block">
+                <div className="pointer-events-none absolute -bottom-6 -left-6 hidden rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur lg:block">
                   <p className="text-xs font-medium text-slate-600">
                     Quick tip
                   </p>
-                  <p className="mt-1 text-sm font-semibold">
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
                     Start early for clearer mountain views.
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Pack a light layer—weather changes fast.
                   </p>
                 </div>
               </div>
@@ -326,7 +630,10 @@ const LandingPage = () => {
           id="highlights"
           className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
         >
-          <div className="mx-auto max-w-6xl px-4 py-14">
+          <div
+            className="dp-reveal mx-auto max-w-6xl px-4 py-14"
+            data-dp-reveal
+          >
             <h2 className="text-3xl font-semibold tracking-tight">
               Highlights
             </h2>
@@ -364,10 +671,13 @@ const LandingPage = () => {
               ].map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300"
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                 >
                   <h3 className="text-base font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm text-slate-600">{item.desc}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    {item.desc}
+                  </p>
+                  <div className="mt-4 h-px w-10 bg-slate-200 transition-colors group-hover:bg-slate-300" />
                 </div>
               ))}
             </div>
@@ -378,7 +688,10 @@ const LandingPage = () => {
           id="treks"
           className="scroll-mt-24 border-t border-slate-200 bg-white"
         >
-          <div className="mx-auto max-w-6xl px-4 py-14">
+          <div
+            className="dp-reveal mx-auto max-w-6xl px-4 py-14"
+            data-dp-reveal
+          >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight">
@@ -417,7 +730,7 @@ const LandingPage = () => {
               ].map((trek) => (
                 <article
                   key={trek.name}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300"
+                  className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                 >
                   <h3 className="text-base font-semibold">{trek.name}</h3>
                   <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
@@ -442,7 +755,10 @@ const LandingPage = () => {
           className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
         >
           <div className="mx-auto max-w-6xl px-4 py-14">
-            <div className="grid gap-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-2 lg:items-center lg:p-10">
+            <div
+              className="dp-reveal grid gap-8 rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur lg:grid-cols-2 lg:items-center lg:p-10"
+              data-dp-reveal
+            >
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight">
                   Plan your Pauri trip
@@ -451,10 +767,10 @@ const LandingPage = () => {
                   Tell us your dates and travel style. We’ll suggest a simple
                   plan you can follow.
                 </p>
-                <ul className="mt-5 space-y-2 text-sm text-slate-700">
-                  <li>• Best for: weekends, slow travel, quick getaways</li>
-                  <li>• Includes: trek ideas, viewpoints, stay areas</li>
-                  <li>• You can plug in real forms/API later</li>
+                <ul className="mt-5 list-disc space-y-2 pl-5 text-sm text-slate-700">
+                  <li>Best for: weekends, slow travel, quick getaways</li>
+                  <li>Includes: trek ideas, viewpoints, stay areas</li>
+                  <li>Form submission is UI-only for now</li>
                 </ul>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

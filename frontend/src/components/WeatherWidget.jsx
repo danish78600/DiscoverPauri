@@ -80,7 +80,7 @@ export default function WeatherWidget({ city }) {
   const displayCity = cleanString(data?.city) || safeCity;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+    <div className="rounded-3xl border border-white/40 bg-white/60 p-5 shadow-sm backdrop-blur transition-shadow hover:shadow-md supports-backdrop-filter:bg-white/50 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-slate-900">Weather</p>
@@ -102,7 +102,7 @@ export default function WeatherWidget({ city }) {
       </div>
 
       {status === "loading" ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mt-4 rounded-2xl border border-white/40 bg-white/40 p-4 shadow-sm">
           <p className="text-sm text-slate-600">Loading weather…</p>
         </div>
       ) : null}
@@ -132,7 +132,7 @@ export default function WeatherWidget({ city }) {
           ) : null}
 
           <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-2xl border border-white/40 bg-white/40 p-3 shadow-sm">
               <dt className="text-slate-600">Humidity</dt>
               <dd className="mt-1 font-semibold text-slate-900">
                 {Number.isFinite(Number(data?.humidity))
@@ -140,19 +140,19 @@ export default function WeatherWidget({ city }) {
                   : "—"}
               </dd>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-2xl border border-white/40 bg-white/40 p-3 shadow-sm">
               <dt className="text-slate-600">Wind</dt>
               <dd className="mt-1 font-semibold text-slate-900">
                 {formatWind(data?.windSpeed)}
               </dd>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-2xl border border-white/40 bg-white/40 p-3 shadow-sm">
               <dt className="text-slate-600">Sunrise</dt>
               <dd className="mt-1 font-semibold text-slate-900">
                 {formatTime(data?.sunrise, data?.timezoneOffset)}
               </dd>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-2xl border border-white/40 bg-white/40 p-3 shadow-sm">
               <dt className="text-slate-600">Sunset</dt>
               <dd className="mt-1 font-semibold text-slate-900">
                 {formatTime(data?.sunset, data?.timezoneOffset)}
